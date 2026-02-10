@@ -1,0 +1,20 @@
+[package]
+name = "vasili"
+version = "0.9.0"
+edition = "2024"
+license = "MIT"
+description = "A lightweight, Rust-based TUI network monitor designed to pinpoint latency spikes by simultaneously tracking Internet and Gateway performance."
+repository = "https://github.com/swiftxp-hub/vasili"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+ratatui = "0.29"
+crossterm = "0.28"
+surge-ping = "0.8"
+csv = "1.3"
+serde = { version = "1.0", features = ["derive"] }
+anyhow = "1.0"
+chrono = "0.4"
+rand = "0.8"
+clap = { version = "4.4", features = ["derive"] }
+default-net = "0.14"
