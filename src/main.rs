@@ -97,7 +97,11 @@ async fn main() -> Result<()> {
         println!("Target: {} ({})", target_host, target_ip);
         println!("Interval: {}ms", ping_interval_ms);
         println!("Logging to: {}", csv_path);
-        println!("Press Ctrl+C to stop.");
+        
+        if let Some(d) = max_duration {
+            println!("Duration limit: {:?} (Daemon will exit automatically)", d);
+        }
+        println!("Press Ctrl+C to stop manually.");
 
         let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
         let is_new_file = file.metadata()?.len() == 0;
@@ -126,6 +130,16 @@ async fn main() -> Result<()> {
             });
         }
 
+        let duration_signal = async {
+            if let Some(d) = max_duration {
+                tokio::time::sleep(d).await;
+            } else {
+                std::future::pending::<()>().await;
+            }
+        };
+
+        tokio::pin!(duration_signal);
+
         loop {
             tokio::select! {
                 Some(update) = rx.recv() => {
@@ -152,9 +166,13 @@ async fn main() -> Result<()> {
                     let _ = csv_writer.serialize(record);
                 }
                 _ = signal::ctrl_c() => {
-                    println!("\nStopping Daemon. Bye!");
+                    println!("\nStopping Daemon (Ctrl+C). Bye!");
                     let _ = csv_writer.flush();
-
+                    break;
+                }
+                _ = &mut duration_signal => {
+                    println!("\nDuration limit reached. Stopping Daemon.");
+                    let _ = csv_writer.flush();
                     break;
                 }
             }
@@ -315,7 +333,7 @@ async fn main() -> Result<()> {
             }
         }
 
-        if app.should_quit || app.is_finished {
+        if app.should_quit {
             break;
         }
     }
