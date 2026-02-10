@@ -11,6 +11,7 @@ Unlike standard ping tools, Vasili simultaneously tracks your **Target** (e.g., 
 * **Dual Monitoring:** Pings a target IP and the gateway (next hop) in parallel.
   **Smart Interval:** The gateway is probed at 2x the frequency of the target to detect local micro-stutters with higher resolution.
 * **Real-time TUI:** Visualizes latency, jitter, and packet loss using high-performance terminal charts (powered by `ratatui`).
+* **Daemon Mode:** Run Vasili in the background (headless) without the TUI. Perfect for long-term monitoring on servers or Raspberry Pis.
 * **Jitter Analysis:** Calculates current jitter and records P25, P75, and P95 percentile latency stats.
 * **Grading System:** Automatically grades your connection stability (S, A, B, C, F) based on packet loss and latency spikes.
                       *Note:* These grades are only intended to provide an initial rough guide and cannot replace a thorough examination of the data.
@@ -66,6 +67,7 @@ sudo ./vasili
     * `Monitor` (5000ms interval)
 * `-i, --interval <DURATION>`: Manually set the ping interval (e.g., `500ms`, `1s`, `30s`, `1m`). The Gateway will automatically be pinged at half this interval (double frequency). Overrides `mode`.
 * `-d, --duration <DURATION>`: Stop automatically after a set time (e.g., `30s`, `10m`, `1h`).
+* `-D, --daemon`: Run in headless mode (no TUI). Logs data directly to CSV. (*Note:* Cannot be used with `--no-csv`).
 * `--no-gateway`: Disable gateway monitoring (target only).
 * `--no-csv`: Disable saving ping data to a CSV file.
 
@@ -80,6 +82,9 @@ sudo ./vasili
 
 # Low frequency monitoring
 ./vasili --mode Monitor
+
+# Run in background (headless)
+./vasili --daemon --target 1.1.1.1
 ```
 
 ## Controls
