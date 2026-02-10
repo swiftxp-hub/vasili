@@ -1,6 +1,6 @@
 [package]
 name = "vasili"
-version = "1.0.0"
+version = "1.0.2"
 edition = "2024"
 license = "MIT"
 description = "A lightweight, Rust-based TUI network monitor designed to pinpoint latency spikes by simultaneously tracking Target and Gateway performance."

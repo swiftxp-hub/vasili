@@ -98,7 +98,7 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
         datasets.push(Dataset::default()
             .name(gw_jitter_legend)
             .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(Color::Magenta))
+            .style(Style::default().fg(Color::LightCyan))
             .graph_type(GraphType::Line)
             .data(&gw.jitter_points));
             

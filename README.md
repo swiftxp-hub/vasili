@@ -101,9 +101,10 @@ The interface is interactive. Use the following keys during operation:
 ### The Graph
 * **Green Line:** Target Latency.
 * **Yellow Points:** Target Jitter.
+* **Red Block:** Target Packet Loss (Timeout).
 * **Blue Line:** Gateway Latency.
-* **Magenta Points:** Gateway Jitter.
-* **Red/Magenta Block:** Packet Loss (Timeout).
+* **Light Cyan Line:** Gateway Jitter.
+* **Magenta Block:** Gateway Packet Loss (Timeout).
 
 ### The Logic
 1.  **If Target spikes but Gateway is flat:** The issue is likely external (ISP, Modem, or the route to the server).
