@@ -291,6 +291,7 @@ async fn main() -> Result<()> {
         target_host,
         gateway_host_str.ne("N/A").then(|| gateway_host_str),
         ui_interval_ms_f64,
+        ping_interval_ms,
         max_duration
     );
 

@@ -99,6 +99,8 @@ pub struct App {
     pub recorded_duration: f64,
     pub x_counter: f64,
     pub time_factor: f64,
+
+    pub configured_interval: u64,
     
     pub zoom_window_seconds: f64,
     pub scroll_offset_seconds: f64,
@@ -114,6 +116,7 @@ impl App {
         target_host: String, 
         gateway_host: Option<String>, 
         interval_ms_float: f64,
+        configured_interval: u64,
         max_duration: Option<std::time::Duration>
     ) -> Self {
         Self {
@@ -124,6 +127,8 @@ impl App {
             recorded_duration: 0.0,
             x_counter: 0.0,
             time_factor: interval_ms_float / 1000.0,
+
+            configured_interval,
             
             zoom_window_seconds: if interval_ms_float <= 200.0 { 60.0 } else { 300.0 },
             scroll_offset_seconds: 0.0,

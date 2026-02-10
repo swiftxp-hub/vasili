@@ -43,7 +43,7 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
     let view_end_time_abs = app.start_time + Duration::milliseconds((view_end_sec * 1000.0) as i64);
 
     let status_text = if app.is_finished { "[FINISHED]" } else if app.is_paused { "[PAUSED]" } else { "[LIVE]" };
-    let title_prefix = format!(" VASILI ({}ms) - Target: {} -", (app.time_factor * 1000.0) as u64, app.net_stats.display_name);
+    let title_prefix = format!(" VASILI ({}ms) - Target: {} -", app.configured_interval, app.net_stats.display_name);
 
     let (title, title_color) = if app.scroll_offset_seconds > 0.0 {
         (format!("{} HISTORY (-{:.0}s) {} [ {} - {} ] ", 
