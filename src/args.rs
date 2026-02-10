@@ -21,6 +21,9 @@ pub struct Args {
 
     #[arg(long, default_value_t = false)]
     pub no_csv: bool,
+
+    #[arg(short = 'D', long, default_value_t = false)]
+    pub daemon: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]

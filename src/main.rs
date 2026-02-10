@@ -6,7 +6,7 @@ mod utils;
 
 use anyhow::Result;
 use args::Args;
-use app::App;
+use app::{App, PingRecord};
 use pinger::{run_pinger, SourceType, PingUpdate};
 use std::{fs::OpenOptions, io, time::Duration, net::IpAddr};
 use crossterm::{
@@ -18,7 +18,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph},
 };
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, signal};
 use default_net::get_default_gateway;
 use rand::seq::SliceRandom;
 use clap::Parser;
@@ -31,6 +31,11 @@ const TARGET_POOL: &[&str] = &[
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    if args.daemon && args.no_csv {
+        eprintln!("Error: Daemon mode (-D) requires CSV logging. You cannot use --no-csv with --daemon.");
+        std::process::exit(1);
+    }
 
     let (default_interval_ms, default_mode_name) = match args.mode {
         args::PingMode::Gaming => (50, "GAMING"),
@@ -86,6 +91,75 @@ async fn main() -> Result<()> {
     let timestamp_str = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
     let safe_target = target_host.replace(":", "_");
     let csv_path = format!("vasili_{}_{}ms_{}.csv", timestamp_str, ping_interval_ms, safe_target);
+
+    if args.daemon {
+        println!("VASILI Daemon Mode started.");
+        println!("Target: {} ({})", target_host, target_ip);
+        println!("Interval: {}ms", ping_interval_ms);
+        println!("Logging to: {}", csv_path);
+        println!("Press Ctrl+C to stop.");
+
+        let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
+        let is_new_file = file.metadata()?.len() == 0;
+        let mut csv_writer = csv::WriterBuilder::new().has_headers(false).from_writer(file);
+
+        if is_new_file {
+            csv_writer.write_record(&["Timestamp", "Target Type", "Target IP", "Latency (ms)", "Status"])?;
+            csv_writer.flush()?;
+        }
+
+        let (tx, mut rx) = mpsc::channel::<PingUpdate>(100);
+        let tx_net = tx.clone();
+        let interval_clone = ping_interval.clone();
+
+        tokio::spawn(async move {
+            run_pinger(target_ip, interval_clone, SourceType::Target, tx_net).await;
+        });
+
+        if let Some(gw_ip) = gateway_ip_addr {
+            let tx_gw = tx.clone();
+            let gw_interval = ping_interval / 2;
+            tokio::spawn(async move {
+                run_pinger(gw_ip, gw_interval, SourceType::Gateway, tx_gw).await;
+            });
+        }
+
+        loop {
+            tokio::select! {
+                Some(update) = rx.recv() => {
+                    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S.%3f").to_string();
+                    let (status, latency_ms) = if update.latency < 0.0 {
+                        ("TIMEOUT".to_string(), None)
+                    } else {
+                        ("OK".to_string(), Some(update.latency))
+                    };
+
+                    let (t_type, t_ip) = match update.source {
+                        SourceType::Target => ("Target".to_string(), target_host.clone()),
+                        SourceType::Gateway => ("Gateway".to_string(), gateway_host_str.clone()),
+                    };
+
+                    let record = PingRecord {
+                        timestamp,
+                        target_type: t_type,
+                        target_ip: t_ip,
+                        latency_ms,
+                        status,
+                    };
+
+                    let _ = csv_writer.serialize(record);
+                    let _ = csv_writer.flush();
+                }
+                _ = signal::ctrl_c() => {
+                    println!("\nStopping Daemon. Bye!");
+                    break;
+                }
+            }
+        }
+        
+        return Ok(());
+    }
+
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
