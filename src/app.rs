@@ -113,7 +113,7 @@ impl App {
     pub fn new(
         target_host: String, 
         gateway_host: Option<String>, 
-        interval_ms: u64,
+        interval_ms_float: f64,
         max_duration: Option<std::time::Duration>
     ) -> Self {
         Self {
@@ -123,9 +123,9 @@ impl App {
             start_time: Local::now(),
             recorded_duration: 0.0,
             x_counter: 0.0,
-            time_factor: interval_ms as f64 / 1000.0,
+            time_factor: interval_ms_float / 1000.0,
             
-            zoom_window_seconds: if interval_ms <= 200 { 60.0 } else { 300.0 },
+            zoom_window_seconds: if interval_ms_float <= 200.0 { 60.0 } else { 300.0 },
             scroll_offset_seconds: 0.0,
             
             is_paused: false,

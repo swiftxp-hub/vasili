@@ -173,7 +173,15 @@ async fn main() -> Result<()> {
 
     let mut csv_writer = if !args.no_csv {
         let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
-        Some(csv::WriterBuilder::new().has_headers(false).from_writer(file))
+        
+        let is_new_file = file.metadata()?.len() == 0;
+        let mut writer = csv::WriterBuilder::new().has_headers(false).from_writer(file);
+
+        if is_new_file {
+            writer.write_record(&["Timestamp", "Target Type", "Target IP", "Latency (ms)", "Status"])?;
+        }
+        
+        Some(writer)
     } else {
         None
     };
@@ -195,16 +203,16 @@ async fn main() -> Result<()> {
         });
     }
 
-    let ui_interval_ms = if has_gateway {
-        ping_interval_ms / 3
+    let ui_interval_ms_f64 = if has_gateway {
+        ping_interval_ms as f64 / 3.0
     } else {
-        ping_interval_ms
+        ping_interval_ms as f64
     };
 
     let mut app = App::new(
         target_host,
         gateway_host_str.ne("N/A").then(|| gateway_host_str),
-        ui_interval_ms,
+        ui_interval_ms_f64,
         max_duration
     );
 

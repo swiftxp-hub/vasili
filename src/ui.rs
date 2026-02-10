@@ -197,14 +197,21 @@ fn draw_footer(f: &mut Frame, area: Rect, _app: &App) {
 }
 
 fn calculate_percentiles(latencies: &Vec<f64>) -> (f64, f64, f64) {
-    if latencies.len() > 10 {
-        let mut sorted = latencies.clone();
+    let len = latencies.len();
+
+    if len > 10 {
+        let sample_limit = 10_000;
+        let start_index = if len > sample_limit { len - sample_limit } else { 0 };
+        
+        let mut sorted = latencies[start_index..].to_vec();
+        
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let len = sorted.len() as f64;
+        
+        let sorted_len = sorted.len() as f64;
         (
-            sorted[(len * 0.25) as usize],
-            sorted[(len * 0.75) as usize],
-            sorted[(len * 0.95) as usize]
+            sorted[(sorted_len * 0.25) as usize],
+            sorted[(sorted_len * 0.75) as usize],
+            sorted[(sorted_len * 0.95) as usize]
         )
     } else {
         (0.0, 0.0, 0.0)
