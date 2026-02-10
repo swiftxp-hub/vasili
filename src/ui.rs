@@ -142,11 +142,21 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
 
     let (p25, p75, p95) = calculate_percentiles(&stats.all_latencies);
     
-    let grade = if loss_percent >= 5.0 || p95 >= 120.0 { "F" } 
-    else if loss_percent >= 2.0 || p95 >= 60.0 { "C" } 
-    else if loss_percent >= 0.5 || p95 >= 30.0 { "B" } 
-    else if loss_percent > 0.0  || p95 >= 10.0 { "A" } 
-    else { "S" };
+    let is_gateway = label == "GATEWAY";
+
+    let grade = if is_gateway {
+        if loss_percent >= 1.0 || p95 >= 50.0 { "F" }
+        else if loss_percent > 0.0 || p95 >= 20.0 { "C" }
+        else if p95 >= 10.0 { "B" }
+        else if p95 >= 2.0 { "A" }
+        else { "S" }
+    } else {
+        if loss_percent >= 5.0 || p95 >= 120.0 { "F" } 
+        else if loss_percent >= 2.0 || p95 >= 60.0 { "C" } 
+        else if loss_percent >= 0.5 || p95 >= 30.0 { "B" } 
+        else if loss_percent > 0.0  || p95 >= 10.0 { "A" } 
+        else { "S" }
+    };
 
     let grade_color = match grade {
         "S" | "A" => Color::Green,
