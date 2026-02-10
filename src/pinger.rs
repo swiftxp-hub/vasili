@@ -5,7 +5,7 @@ use surge_ping::{Client, Config, PingIdentifier, PingSequence};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceType {
-    Internet,
+    Target,
     Gateway,
 }
 

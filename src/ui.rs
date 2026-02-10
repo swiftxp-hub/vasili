@@ -23,12 +23,12 @@ pub fn draw(f: &mut Frame, app: &App) {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(chunks[1]);
         
-        draw_host_stats(f, stats_chunks[0], &app.net_stats, "NET", app);
+        draw_host_stats(f, stats_chunks[0], &app.net_stats, "TARGET", app);
         if let Some(gw) = &app.gw_stats {
             draw_host_stats(f, stats_chunks[1], gw, "GATEWAY", app);
         }
     } else {
-        draw_host_stats(f, chunks[1], &app.net_stats, "NET", app);
+        draw_host_stats(f, chunks[1], &app.net_stats, "TARGET", app);
     }
 
     draw_footer(f, chunks[2], app);
@@ -61,7 +61,7 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
 
     let mut datasets = Vec::new();
 
-    let net_ping_legend = format!("NET Ping ({:.1}ms)", app.net_stats.last_latency);
+    let net_ping_legend = format!("TARGET Ping ({:.1}ms)", app.net_stats.last_latency);
     datasets.push(Dataset::default()
         .name(net_ping_legend)
         .marker(symbols::Marker::Braille)
@@ -69,7 +69,7 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
         .graph_type(GraphType::Line)
         .data(&app.net_stats.points));
 
-    let net_jitter_legend = format!("NET Jitter ({:.1}ms)", app.net_stats.current_jitter);
+    let net_jitter_legend = format!("TARGET Jitter ({:.1}ms)", app.net_stats.current_jitter);
     datasets.push(Dataset::default()
         .name(net_jitter_legend)
         .marker(symbols::Marker::Braille)
@@ -77,16 +77,16 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
         .graph_type(GraphType::Line)
         .data(&app.net_stats.jitter_points));
 
-    let net_loss_legend = format!("NET Loss ({})", app.net_stats.loss_count);
+    let net_loss_legend = format!("TARGET Loss ({})", app.net_stats.loss_count);
     datasets.push(Dataset::default()
         .name(net_loss_legend)
-        .marker(symbols::Marker::Dot)
+        .marker(symbols::Marker::Block)
         .style(Style::default().fg(Color::Red))
         .graph_type(GraphType::Scatter)
         .data(&app.net_stats.loss_points));
 
     if let Some(gw) = &app.gw_stats {
-        let gw_ping_legend = format!("GW Ping ({:.1}ms)", gw.last_latency);
+        let gw_ping_legend = format!("GATEWAY Ping ({:.1}ms)", gw.last_latency);
         datasets.push(Dataset::default()
             .name(gw_ping_legend)
             .marker(symbols::Marker::Braille)
@@ -94,7 +94,7 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
             .graph_type(GraphType::Line)
             .data(&gw.points));
 
-        let gw_jitter_legend = format!("GW Jitter ({:.1}ms)", gw.current_jitter);
+        let gw_jitter_legend = format!("GATEWAY Jitter ({:.1}ms)", gw.current_jitter);
         datasets.push(Dataset::default()
             .name(gw_jitter_legend)
             .marker(symbols::Marker::Braille)
@@ -102,10 +102,10 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
             .graph_type(GraphType::Line)
             .data(&gw.jitter_points));
             
-        let gw_loss_legend = format!("GW Loss ({})", gw.loss_count);
+        let gw_loss_legend = format!("GATEWAY Loss ({})", gw.loss_count);
         datasets.push(Dataset::default()
             .name(gw_loss_legend)
-            .marker(symbols::Marker::Dot)
+            .marker(symbols::Marker::Block)
             .style(Style::default().fg(Color::Magenta))
             .graph_type(GraphType::Scatter)
             .data(&gw.loss_points));
@@ -163,8 +163,8 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
     
     let runtime_str = format!("{:02}:{:02}{}", (app.recorded_duration as u64)/60, (app.recorded_duration as u64)%60, limit_str);
 
-    let mut spans = vec![
-        Span::raw("Loss: "),
+    let spans = vec![
+        Span::raw(" Loss: "),
         Span::styled(format!("{:.1}% ", loss_percent), Style::default().fg(if stats.loss_count == 0 { Color::Green } else { Color::Red }).add_modifier(Modifier::BOLD)),
         Span::raw("| P(25/75/95): "),
         Span::styled(format!("{:.0}/{:.0}/{:.0}ms ", p25, p75, p95), Style::default().fg(Color::Cyan)),
@@ -176,16 +176,7 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
         Span::styled(grade, Style::default().fg(grade_color).add_modifier(Modifier::BOLD)),
     ];
 
-    if label == "NET" && app.gw_stats.is_none() {
-        let mut time_span = vec![
-            Span::raw("Time: "),
-            Span::styled(format!("{} | ", runtime_str), Style::default().fg(if app.is_finished { Color::Red } else { Color::White }))
-        ];
-        time_span.append(&mut spans);
-        spans = time_span;
-    }
-
-    let title = if label == "NET" {
+    let title = if label == "TARGET" {
         format!(" Stats ({}) - Time: {} ", label, runtime_str)
     } else {
         format!(" Stats ({}) ", label)

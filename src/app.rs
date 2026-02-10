@@ -150,15 +150,19 @@ impl App {
         let time_val = self.x_counter * self.time_factor;
         
         let record = match source {
-            SourceType::Internet => {
+            SourceType::Target => {
                 self.x_counter += 1.0;
                 self.recorded_duration += self.time_factor;
                 let mut r = self.net_stats.update(latency, time_val);
-                r.target_type = "Internet".to_string();
+                r.target_type = "Target".to_string();
                 Some(r)
             },
+            
             SourceType::Gateway => {
                 if let Some(gw) = &mut self.gw_stats {
+                    self.x_counter += 1.0;
+                    self.recorded_duration += self.time_factor;
+                    
                     let mut r = gw.update(latency, time_val);
                     r.target_type = "Gateway".to_string();
                     Some(r)

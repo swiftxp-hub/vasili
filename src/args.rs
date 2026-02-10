@@ -18,6 +18,9 @@ pub struct Args {
 
     #[arg(long, default_value_t = false)]
     pub no_gateway: bool,
+
+    #[arg(long, default_value_t = false)]
+    pub no_csv: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]

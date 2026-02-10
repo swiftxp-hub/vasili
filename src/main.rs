@@ -33,8 +33,8 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     let (default_interval_ms, default_mode_name) = match args.mode {
-        args::PingMode::Gaming => (200, "GAMING"),
-        args::PingMode::Standard => (1000, "STANDARD"),
+        args::PingMode::Gaming => (50, "GAMING"),
+        args::PingMode::Standard => (500, "STANDARD"),
         args::PingMode::Monitor => (5000, "MONITOR"),
     };
 
@@ -111,18 +111,35 @@ async fn main() -> Result<()> {
                 Line::from(Span::styled("Gateway: Not Found", Style::default().fg(Color::Red)))
             };
 
+            let interval_line = if has_gateway {
+                Line::from(vec![
+                    Span::raw("Interval: "), 
+                    Span::styled(format!("{}ms ", ping_interval_ms), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("(Gateway: {}ms)", ping_interval_ms / 2), Style::default().fg(Color::Gray))
+                ])
+            } else {
+                Line::from(vec![
+                    Span::raw("Interval: "), 
+                    Span::styled(format!("{}ms", ping_interval_ms), Style::default().fg(Color::White).add_modifier(Modifier::BOLD))
+                ])
+            };
+
             let welcome_text = vec![
                 Line::from(Span::styled("Welcome to VASILI", Style::default().add_modifier(Modifier::BOLD).fg(Color::Green))),
                 Line::from(Span::styled("\"Give me a ping, Vasili. One ping only.\"", Style::default().add_modifier(Modifier::ITALIC).fg(Color::Cyan))),
                 Line::from(""),
                 Line::from(vec![Span::raw("Current Mode: "), Span::styled(mode_display_name.clone(), Style::default().fg(Color::Blue))]),
-                Line::from(vec![Span::raw("Interval: "), Span::styled(format!("{}ms", ping_interval_ms), Style::default().fg(Color::White).add_modifier(Modifier::BOLD))]),
+                
+                interval_line,
+                
                 Line::from(vec![
                     Span::raw("Target: "),
                     Span::styled(format!("{} ", target_host), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
                     Span::styled(format!("({})", target_source_label), Style::default().fg(target_source_color))
                 ]),
+
                 gw_line,
+                
                 Line::from(if let Some(d) = max_duration { format!("Limit: {}m {}s", d.as_secs()/60, d.as_secs()%60) } else { "Limit: Infinite".to_string() }),
                 Line::from(""),
                 Line::from(Span::styled("CONTROLS:", Style::default().fg(Color::Yellow))),
@@ -154,28 +171,40 @@ async fn main() -> Result<()> {
         }
     }
 
-    let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
-    let mut csv_writer = csv::WriterBuilder::new().has_headers(false).from_writer(file);
-    let (tx, mut rx) = mpsc::channel::<PingUpdate>(100);
+    let mut csv_writer = if !args.no_csv {
+        let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
+        Some(csv::WriterBuilder::new().has_headers(false).from_writer(file))
+    } else {
+        None
+    };
 
+    let (tx, mut rx) = mpsc::channel::<PingUpdate>(100);
     let tx_net = tx.clone();
     let interval_clone = ping_interval.clone();
+
     tokio::spawn(async move {
-        run_pinger(target_ip, interval_clone, SourceType::Internet, tx_net).await;
+        run_pinger(target_ip, interval_clone, SourceType::Target, tx_net).await;
     });
 
     if let Some(gw_ip) = gateway_ip_addr {
         let tx_gw = tx.clone();
-        let interval_clone = ping_interval.clone();
+        let gw_interval = ping_interval / 2; 
+
         tokio::spawn(async move {
-            run_pinger(gw_ip, interval_clone, SourceType::Gateway, tx_gw).await;
+            run_pinger(gw_ip, gw_interval, SourceType::Gateway, tx_gw).await;
         });
     }
+
+    let ui_interval_ms = if has_gateway {
+        ping_interval_ms / 3
+    } else {
+        ping_interval_ms
+    };
 
     let mut app = App::new(
         target_host,
         gateway_host_str.ne("N/A").then(|| gateway_host_str),
-        ping_interval_ms,
+        ui_interval_ms,
         max_duration
     );
 
@@ -185,8 +214,10 @@ async fn main() -> Result<()> {
         tokio::select! {
             Some(update) = rx.recv() => {
                 if let Some(record) = app.on_ping(update.source, update.latency) {
-                    let _ = csv_writer.serialize(record);
-                    let _ = csv_writer.flush();
+                    if let Some(writer) = &mut csv_writer {
+                        let _ = writer.serialize(record);
+                        let _ = writer.flush();
+                    }
                 }
             }
             event = async { tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(50))).await } => {
@@ -205,6 +236,12 @@ async fn main() -> Result<()> {
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    println!("VASILI finished. Log saved to: {}", csv_path);
+    
+    if !args.no_csv {
+        println!("VASILI finished. Log saved to: {}", csv_path);
+    } else {
+        println!("VASILI finished. (CSV logging disabled)");
+    }
+
     Ok(())
 }

@@ -3,7 +3,7 @@ name = "vasili"
 version = "0.9.0"
 edition = "2024"
 license = "MIT"
-description = "A lightweight, Rust-based TUI network monitor designed to pinpoint latency spikes by simultaneously tracking Internet and Gateway performance."
+description = "A lightweight, Rust-based TUI network monitor designed to pinpoint latency spikes by simultaneously tracking Target and Gateway performance."
 repository = "https://github.com/swiftxp-hub/vasili"
 
 [dependencies]
