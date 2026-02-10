@@ -8,7 +8,7 @@ use anyhow::Result;
 use args::Args;
 use app::{App, PingRecord};
 use pinger::{run_pinger, SourceType, PingUpdate};
-use std::{fs::OpenOptions, io, time::Duration, net::IpAddr};
+use std::{fs::OpenOptions, io::{self, BufWriter}, time::Duration, net::IpAddr};
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -101,7 +101,9 @@ async fn main() -> Result<()> {
 
         let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
         let is_new_file = file.metadata()?.len() == 0;
-        let mut csv_writer = csv::WriterBuilder::new().has_headers(false).from_writer(file);
+        
+        let buf_writer = BufWriter::new(file);
+        let mut csv_writer = csv::WriterBuilder::new().has_headers(false).from_writer(buf_writer);
 
         if is_new_file {
             csv_writer.write_record(&["Timestamp", "Target Type", "Target IP", "Latency (ms)", "Status"])?;
@@ -148,10 +150,11 @@ async fn main() -> Result<()> {
                     };
 
                     let _ = csv_writer.serialize(record);
-                    let _ = csv_writer.flush();
                 }
                 _ = signal::ctrl_c() => {
                     println!("\nStopping Daemon. Bye!");
+                    let _ = csv_writer.flush();
+
                     break;
                 }
             }
@@ -159,7 +162,6 @@ async fn main() -> Result<()> {
         
         return Ok(());
     }
-
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -249,10 +251,12 @@ async fn main() -> Result<()> {
         let file = OpenOptions::new().create(true).append(true).open(&csv_path)?;
         
         let is_new_file = file.metadata()?.len() == 0;
-        let mut writer = csv::WriterBuilder::new().has_headers(false).from_writer(file);
+        let buf_writer = BufWriter::new(file);
+        let mut writer = csv::WriterBuilder::new().has_headers(false).from_writer(buf_writer);
 
         if is_new_file {
             writer.write_record(&["Timestamp", "Target Type", "Target IP", "Latency (ms)", "Status"])?;
+            writer.flush()?; 
         }
         
         Some(writer)
@@ -298,7 +302,6 @@ async fn main() -> Result<()> {
                 if let Some(record) = app.on_ping(update.source, update.latency) {
                     if let Some(writer) = &mut csv_writer {
                         let _ = writer.serialize(record);
-                        let _ = writer.flush();
                     }
                 }
             }
@@ -318,6 +321,10 @@ async fn main() -> Result<()> {
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    
+    if let Some(mut writer) = csv_writer {
+        let _ = writer.flush();
+    }
     
     if !args.no_csv {
         println!("VASILI finished. Log saved to: {}", csv_path);
