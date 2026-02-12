@@ -1,7 +1,8 @@
+use crate::pinger::SourceType;
 use chrono::{DateTime, Local};
 use crossterm::event::KeyCode;
 use serde::Serialize;
-use crate::pinger::SourceType;
+use std::time::Instant;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct PingRecord {
@@ -18,7 +19,7 @@ pub struct HostStats {
     pub jitter_points: Vec<(f64, f64)>,
     pub loss_points: Vec<(f64, f64)>,
     pub all_latencies: Vec<f64>,
-    
+
     pub last_latency: f64,
     pub current_jitter: f64,
     pub total_count: u64,
@@ -29,6 +30,8 @@ pub struct HostStats {
     pub p25: f64,
     pub p75: f64,
     pub p99: f64,
+
+    pub last_recalc: Instant,
 }
 
 impl HostStats {
@@ -39,15 +42,19 @@ impl HostStats {
             jitter_points: Vec::new(),
             loss_points: Vec::new(),
             all_latencies: Vec::new(),
+
             last_latency: 0.0,
             current_jitter: 0.0,
             total_count: 0,
             loss_count: 0,
             spikes_minor: 0,
             spikes_major: 0,
+
             p25: 0.0,
             p75: 0.0,
             p99: 0.0,
+
+            last_recalc: Instant::now(),
         }
     }
 
@@ -88,7 +95,13 @@ impl HostStats {
         self.points.push((time_val, latency));
         self.jitter_points.push((time_val, jitter));
 
-        self.recalculate_percentiles();
+        let should_recalc = self.all_latencies.len() < 50 
+            || self.last_recalc.elapsed().as_secs_f64() >= 1.0;
+
+        if should_recalc {
+            self.recalculate_percentiles();
+            self.last_recalc = Instant::now();
+        }
 
         PingRecord {
             timestamp,
@@ -102,12 +115,16 @@ impl HostStats {
     fn recalculate_percentiles(&mut self) {
         let len = self.all_latencies.len();
         if len > 10 {
-            let sample_limit = 100_000; 
-            let start_index = if len > sample_limit { len - sample_limit } else { 0 };
-            
+            let sample_limit = 100_000;
+            let start_index = if len > sample_limit {
+                len - sample_limit
+            } else {
+                0
+            };
+
             let mut sorted = self.all_latencies[start_index..].to_vec();
             sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            
+
             let sorted_len = sorted.len() as f64;
             let max_idx = sorted_len - 1.0;
 
@@ -128,7 +145,7 @@ pub struct App {
     pub time_factor: f64,
 
     pub configured_interval: u64,
-    
+
     pub zoom_window_seconds: f64,
     pub scroll_offset_seconds: f64,
 
@@ -140,26 +157,30 @@ pub struct App {
 
 impl App {
     pub fn new(
-        target_host: String, 
-        gateway_host: Option<String>, 
+        target_host: String,
+        gateway_host: Option<String>,
         interval_ms_float: f64,
         configured_interval: u64,
-        max_duration: Option<std::time::Duration>
+        max_duration: Option<std::time::Duration>,
     ) -> Self {
         Self {
             net_stats: HostStats::new(target_host),
             gw_stats: gateway_host.map(HostStats::new),
-            
+
             start_time: Local::now(),
             recorded_duration: 0.0,
             x_counter: 0.0,
             time_factor: interval_ms_float / 1000.0,
 
             configured_interval,
-            
-            zoom_window_seconds: if interval_ms_float <= 200.0 { 60.0 } else { 300.0 },
+
+            zoom_window_seconds: if interval_ms_float <= 200.0 {
+                60.0
+            } else {
+                300.0
+            },
             scroll_offset_seconds: 0.0,
-            
+
             is_paused: false,
             should_quit: false,
             is_finished: false,
@@ -172,19 +193,26 @@ impl App {
             return None;
         }
 
+        let now = Local::now();
+        let duration_since_start = now.signed_duration_since(self.start_time);
+        
+        let time_val = duration_since_start.num_milliseconds() as f64 / 1000.0;
+        
+        if time_val > self.recorded_duration {
+            self.recorded_duration = time_val;
+        }
+        
+        self.x_counter += 1.0; 
+        
         if let Some(max) = self.max_duration {
             if self.recorded_duration >= max.as_secs_f64() {
                 self.is_finished = true;
                 return None;
             }
         }
-
-        let time_val = self.x_counter * self.time_factor;
         
         let record = match source {
             SourceType::Target => {
-                self.x_counter += 1.0;
-                self.recorded_duration += self.time_factor;
                 let mut r = self.net_stats.update(latency, time_val);
                 r.target_type = "Target".to_string();
                 Some(r)
@@ -192,9 +220,6 @@ impl App {
             
             SourceType::Gateway => {
                 if let Some(gw) = &mut self.gw_stats {
-                    self.x_counter += 1.0;
-                    self.recorded_duration += self.time_factor;
-                    
                     let mut r = gw.update(latency, time_val);
                     r.target_type = "Gateway".to_string();
                     Some(r)
@@ -214,27 +239,27 @@ impl App {
                 if !self.is_finished {
                     self.is_paused = !self.is_paused;
                 }
-            },
+            }
             KeyCode::Char('+') | KeyCode::Up => {
                 if self.zoom_window_seconds > 10.0 {
                     self.zoom_window_seconds -= 10.0;
                 }
-            },
+            }
             KeyCode::Char('-') | KeyCode::Down => {
                 self.zoom_window_seconds += 10.0;
-            },
+            }
             KeyCode::Left => {
                 let current_time = self.x_counter * self.time_factor;
                 if self.scroll_offset_seconds < current_time {
                     self.scroll_offset_seconds += 10.0;
                 }
-            },
+            }
             KeyCode::Right => {
                 self.scroll_offset_seconds -= 10.0;
                 if self.scroll_offset_seconds < 0.0 {
                     self.scroll_offset_seconds = 0.0;
                 }
-            },
+            }
             _ => {}
         }
     }

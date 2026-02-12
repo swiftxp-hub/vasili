@@ -35,7 +35,7 @@ pub fn draw(f: &mut Frame, app: &App) {
 }
 
 fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
-    let current_time_seconds = app.x_counter * app.time_factor;
+    let current_time_seconds = app.recorded_duration;
     let view_end_sec = (current_time_seconds - app.scroll_offset_seconds).max(0.0);
     let view_start_sec = (view_end_sec - app.zoom_window_seconds).max(0.0);
     
