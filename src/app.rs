@@ -58,57 +58,61 @@ impl HostStats {
         }
     }
 
-    fn update(&mut self, latency: f64, time_val: f64) -> PingRecord {
+    fn update(&mut self, latency_opt: Option<f64>, time_val: f64) -> PingRecord {
         self.total_count += 1;
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S.%3f").to_string();
         
-        if latency < 0.0 {
-            self.loss_count += 1;
-            self.spikes_major += 1;
-            self.loss_points.push((time_val, 100.0));
-            
-            return PingRecord {
-                timestamp,
-                target_type: "Unknown".to_string(),
-                target_ip: self.display_name.clone(),
-                latency_ms: None,
-                status: "TIMEOUT".to_string(),
-            };
-        }
+        match latency_opt {
+            None => {
+                self.loss_count += 1;
+                self.spikes_major += 1;
+                self.loss_points.push((time_val, 100.0));
+                
+                return PingRecord {
+                    timestamp,
+                    target_type: "Unknown".to_string(),
+                    target_ip: self.display_name.clone(),
+                    latency_ms: None,
+                    status: "TIMEOUT".to_string(),
+                };
+            }
 
-        let jitter = if self.last_latency == 0.0 { 
-            0.0 
-        } else { 
-            (latency - self.last_latency).abs() 
-        };
+            Some(latency) => {
+                let jitter = if self.last_latency == 0.0 { 
+                    0.0 
+                } else { 
+                    (latency - self.last_latency).abs() 
+                };
 
-        self.last_latency = latency;
-        self.current_jitter = jitter;
-        self.all_latencies.push(latency);
+                self.last_latency = latency;
+                self.current_jitter = jitter;
+                self.all_latencies.push(latency);
 
-        if latency >= 100.0 {
-            self.spikes_major += 1;
-        } else if latency >= 30.0 {
-            self.spikes_minor += 1;
-        }
+                if latency >= 100.0 {
+                    self.spikes_major += 1;
+                } else if latency >= 30.0 {
+                    self.spikes_minor += 1;
+                }
 
-        self.points.push((time_val, latency));
-        self.jitter_points.push((time_val, jitter));
+                self.points.push((time_val, latency));
+                self.jitter_points.push((time_val, jitter));
 
-        let should_recalc = self.all_latencies.len() < 50 
-            || self.last_recalc.elapsed().as_secs_f64() >= 1.0;
+                let should_recalc = self.all_latencies.len() < 50 
+                    || self.last_recalc.elapsed().as_secs_f64() >= 1.0;
 
-        if should_recalc {
-            self.recalculate_percentiles();
-            self.last_recalc = Instant::now();
-        }
+                if should_recalc {
+                    self.recalculate_percentiles();
+                    self.last_recalc = Instant::now();
+                }
 
-        PingRecord {
-            timestamp,
-            target_type: "Unknown".to_string(),
-            target_ip: self.display_name.clone(),
-            latency_ms: Some(latency),
-            status: "OK".to_string(),
+                PingRecord {
+                    timestamp,
+                    target_type: "Unknown".to_string(),
+                    target_ip: self.display_name.clone(),
+                    latency_ms: Some(latency),
+                    status: "OK".to_string(),
+                }
+            }
         }
     }
 
@@ -131,6 +135,28 @@ impl HostStats {
             self.p25 = sorted[(max_idx * 0.25).round() as usize];
             self.p75 = sorted[(max_idx * 0.75).round() as usize];
             self.p99 = sorted[(max_idx * 0.99).round() as usize];
+        }
+    }
+
+    pub fn calculate_grade(&self, is_gateway: bool) -> &'static str {
+        let loss_percent = if self.total_count > 0 {
+            (self.loss_count as f64 / self.total_count as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        if is_gateway {
+            if loss_percent >= 1.0 || self.p99 >= 50.0 { "F" }
+            else if loss_percent > 0.0 || self.p99 >= 25.0 { "C" }
+            else if self.p99 >= 10.0 { "B" }
+            else if self.p99 >= 5.0 { "A" }
+            else { "S" }
+        } else {
+            if loss_percent >= 5.0 || self.p99 >= 150.0 { "F" } 
+            else if loss_percent >= 2.0 || self.p99 >= 100.0 { "C" } 
+            else if loss_percent >= 0.5 || self.p99 >= 70.0 { "B" } 
+            else if loss_percent > 0.0  || self.p99 >= 40.0 { "A" } 
+            else { "S" }
         }
     }
 }
@@ -188,7 +214,7 @@ impl App {
         }
     }
 
-    pub fn on_ping(&mut self, source: SourceType, latency: f64) -> Option<PingRecord> {
+    pub fn on_ping(&mut self, source: SourceType, latency: Option<f64>) -> Option<PingRecord> {
         if self.is_paused || self.is_finished {
             return None;
         }

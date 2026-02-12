@@ -12,7 +12,7 @@ pub enum SourceType {
 #[derive(Debug)]
 pub struct PingUpdate {
     pub source: SourceType,
-    pub latency: f64,
+    pub latency: Option<f64>, 
 }
 
 pub async fn run_pinger(
@@ -37,12 +37,14 @@ pub async fn run_pinger(
         match pinger.ping(PingSequence(seq_cnt), &payload).await {
             Ok((_, duration)) => {
                 let ms = duration.as_secs_f64() * 1000.0;
-                let _ = tx.send(PingUpdate { source: source_type.clone(), latency: ms }).await;
+                let _ = tx.send(PingUpdate { source: source_type.clone(), latency: Some(ms) }).await;
             }
+
             Err(_) => {
-                let _ = tx.send(PingUpdate { source: source_type.clone(), latency: -1.0 }).await;
+                let _ = tx.send(PingUpdate { source: source_type.clone(), latency: None }).await;
             }
         };
+        
         seq_cnt = seq_cnt.wrapping_add(1);
     }
 }

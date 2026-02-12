@@ -164,20 +164,7 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
     let (p25, p75, p99) = (stats.p25, stats.p75, stats.p99);
     
     let is_gateway = label == "GATEWAY";
-
-    let grade = if is_gateway {
-        if loss_percent >= 1.0 || p99 >= 50.0 { "F" }
-        else if loss_percent > 0.0 || p99 >= 25.0 { "C" }
-        else if p99 >= 10.0 { "B" }
-        else if p99 >= 5.0 { "A" }
-        else { "S" }
-    } else {
-        if loss_percent >= 5.0 || p99 >= 150.0 { "F" } 
-        else if loss_percent >= 2.0 || p99 >= 100.0 { "C" } 
-        else if loss_percent >= 0.5 || p99 >= 70.0 { "B" } 
-        else if loss_percent > 0.0  || p99 >= 40.0 { "A" } 
-        else { "S" }
-    };
+    let grade = stats.calculate_grade(is_gateway);
 
     let grade_color = match grade {
         "S" | "A" => Color::Green,
@@ -186,11 +173,9 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
         _ => Color::Red,
     };
 
-    let limit_str = if let Some(max) = app.max_duration {
-        format!("/{:02}:{:02}", max.as_secs()/60, max.as_secs()%60)
-    } else {
-        String::new()
-    };
+    let limit_str = app.max_duration
+        .map(|max| format!("/{:02}:{:02}", max.as_secs()/60, max.as_secs()%60))
+        .unwrap_or_default();
     
     let runtime_str = format!("{:02}:{:02}{}", (app.recorded_duration as u64)/60, (app.recorded_duration as u64)%60, limit_str);
 

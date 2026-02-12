@@ -208,10 +208,9 @@ async fn main() -> Result<()> {
             tokio::select! {
                 Some(update) = rx.recv() => {
                     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S.%3f").to_string();
-                    let (status, latency_ms) = if update.latency < 0.0 {
-                        ("TIMEOUT".to_string(), None)
-                    } else {
-                        ("OK".to_string(), Some(update.latency))
+                    let (status, latency_ms) = match update.latency {
+                        Some(ms) => ("OK".to_string(), Some(ms)),
+                        None => ("TIMEOUT".to_string(), None),
                     };
 
                     let (t_type, t_ip) = match update.source {
@@ -465,6 +464,7 @@ async fn main() -> Result<()> {
                     }
                 }
             }
+
             event = async { tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(50))).await } => {
                 if let Ok(Ok(true)) = event {
                     if let Event::Key(key) = event::read()? {
