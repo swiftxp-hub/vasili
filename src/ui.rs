@@ -59,6 +59,17 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
             view_start_time_abs.format("%H:%M:%S"), view_end_time_abs.format("%H:%M:%S")), Color::Green)
     };
 
+    let max_ping = app.net_stats.points.iter()
+        .map(|(_, v)| *v)
+        .fold(0.0, f64::max);
+    
+    let max_gw = if let Some(gw) = &app.gw_stats {
+        gw.points.iter().map(|(_, v)| *v).fold(0.0, f64::max)
+    } else { 0.0 };
+
+    let global_max = max_ping.max(max_gw);
+    let y_limit = if global_max > 90.0 { global_max * 1.1 } else { 100.0 };
+
     let mut datasets = Vec::new();
 
     let net_ping_legend = format!("TARGET Ping ({:.1}ms)", app.net_stats.last_latency);
@@ -77,13 +88,19 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
         .graph_type(GraphType::Line)
         .data(&app.net_stats.jitter_points));
 
+    let net_loss_data: Vec<(f64, f64)> = app.net_stats.loss_points.iter()
+        .map(|(t, _)| (*t, y_limit))
+        .collect();
+
     let net_loss_legend = format!("TARGET Loss ({})", app.net_stats.loss_count);
     datasets.push(Dataset::default()
         .name(net_loss_legend)
         .marker(symbols::Marker::Block)
         .style(Style::default().fg(Color::Red))
         .graph_type(GraphType::Scatter)
-        .data(&app.net_stats.loss_points));
+        .data(&net_loss_data));
+
+    let mut gw_loss_data = Vec::new();
 
     if let Some(gw) = &app.gw_stats {
         let gw_ping_legend = format!("GATEWAY Ping ({:.1}ms)", gw.last_latency);
@@ -102,13 +119,17 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
             .graph_type(GraphType::Line)
             .data(&gw.jitter_points));
             
+        gw_loss_data.extend(
+            gw.loss_points.iter().map(|(t, _)| (*t, y_limit))
+        );
+
         let gw_loss_legend = format!("GATEWAY Loss ({})", gw.loss_count);
         datasets.push(Dataset::default()
             .name(gw_loss_legend)
             .marker(symbols::Marker::Block)
             .style(Style::default().fg(Color::Magenta))
             .graph_type(GraphType::Scatter)
-            .data(&gw.loss_points));
+            .data(&gw_loss_data));
     }
 
     let chart = Chart::new(datasets)
@@ -123,11 +144,11 @@ fn draw_chart(f: &mut Frame, area: Rect, app: &App) {
         .y_axis(Axis::default()
             .title("ms")
             .style(Style::default().fg(Color::Gray))
-            .bounds([0.0, 100.0])
+            .bounds([0.0, y_limit])
             .labels(vec![
                 Span::styled("0", Style::default()),
-                Span::styled("50", Style::default()),
-                Span::styled("100", Style::default().fg(Color::Red))
+                Span::styled(format!("{:.0}", y_limit / 2.0), Style::default()),
+                Span::styled(format!("{:.0}", y_limit), Style::default().fg(Color::Red))
             ]));
 
     f.render_widget(chart, area);
@@ -140,21 +161,21 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
         0.0
     };
 
-    let (p25, p75, p95) = calculate_percentiles(&stats.all_latencies);
+    let (p25, p75, p99) = (stats.p25, stats.p75, stats.p99);
     
     let is_gateway = label == "GATEWAY";
 
     let grade = if is_gateway {
-        if loss_percent >= 1.0 || p95 >= 50.0 { "F" }
-        else if loss_percent > 0.0 || p95 >= 20.0 { "C" }
-        else if p95 >= 10.0 { "B" }
-        else if p95 >= 2.0 { "A" }
+        if loss_percent >= 1.0 || p99 >= 50.0 { "F" }
+        else if loss_percent > 0.0 || p99 >= 25.0 { "C" }
+        else if p99 >= 10.0 { "B" }
+        else if p99 >= 5.0 { "A" }
         else { "S" }
     } else {
-        if loss_percent >= 5.0 || p95 >= 120.0 { "F" } 
-        else if loss_percent >= 2.0 || p95 >= 60.0 { "C" } 
-        else if loss_percent >= 0.5 || p95 >= 30.0 { "B" } 
-        else if loss_percent > 0.0  || p95 >= 10.0 { "A" } 
+        if loss_percent >= 5.0 || p99 >= 150.0 { "F" } 
+        else if loss_percent >= 2.0 || p99 >= 100.0 { "C" } 
+        else if loss_percent >= 0.5 || p99 >= 70.0 { "B" } 
+        else if loss_percent > 0.0  || p99 >= 40.0 { "A" } 
         else { "S" }
     };
 
@@ -176,8 +197,8 @@ fn draw_host_stats(f: &mut Frame, area: Rect, stats: &HostStats, label: &str, ap
     let spans = vec![
         Span::raw(" Loss: "),
         Span::styled(format!("{:.1}% ", loss_percent), Style::default().fg(if stats.loss_count == 0 { Color::Green } else { Color::Red }).add_modifier(Modifier::BOLD)),
-        Span::raw("| P(25/75/95): "),
-        Span::styled(format!("{:.0}/{:.0}/{:.0}ms ", p25, p75, p95), Style::default().fg(Color::Cyan)),
+        Span::raw("| P(25/75/99): "),
+        Span::styled(format!("{:.0}/{:.0}/{:.0}ms ", p25, p75, p99), Style::default().fg(Color::Cyan)),
         Span::raw("| Spikes >30ms: "),
         Span::styled(format!("{} ", stats.spikes_minor), Style::default().fg(if stats.spikes_minor == 0 { Color::Green } else { Color::Yellow })),
         Span::raw("| >100ms: "),
@@ -204,26 +225,4 @@ fn draw_footer(f: &mut Frame, area: Rect, _app: &App) {
         .style(Style::default().bg(Color::DarkGray).fg(Color::White))
         .alignment(Alignment::Center);
     f.render_widget(p, area);
-}
-
-fn calculate_percentiles(latencies: &Vec<f64>) -> (f64, f64, f64) {
-    let len = latencies.len();
-
-    if len > 10 {
-        let sample_limit = 10_000;
-        let start_index = if len > sample_limit { len - sample_limit } else { 0 };
-        
-        let mut sorted = latencies[start_index..].to_vec();
-        
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        
-        let sorted_len = sorted.len() as f64;
-        (
-            sorted[(sorted_len * 0.25) as usize],
-            sorted[(sorted_len * 0.75) as usize],
-            sorted[(sorted_len * 0.95) as usize]
-        )
-    } else {
-        (0.0, 0.0, 0.0)
-    }
 }

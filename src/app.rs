@@ -25,6 +25,10 @@ pub struct HostStats {
     pub loss_count: u64,
     pub spikes_minor: u64,
     pub spikes_major: u64,
+
+    pub p25: f64,
+    pub p75: f64,
+    pub p99: f64,
 }
 
 impl HostStats {
@@ -41,6 +45,9 @@ impl HostStats {
             loss_count: 0,
             spikes_minor: 0,
             spikes_major: 0,
+            p25: 0.0,
+            p75: 0.0,
+            p99: 0.0,
         }
     }
 
@@ -81,12 +88,32 @@ impl HostStats {
         self.points.push((time_val, latency));
         self.jitter_points.push((time_val, jitter));
 
+        self.recalculate_percentiles();
+
         PingRecord {
             timestamp,
             target_type: "Unknown".to_string(),
             target_ip: self.display_name.clone(),
             latency_ms: Some(latency),
             status: "OK".to_string(),
+        }
+    }
+
+    fn recalculate_percentiles(&mut self) {
+        let len = self.all_latencies.len();
+        if len > 10 {
+            let sample_limit = 100_000; 
+            let start_index = if len > sample_limit { len - sample_limit } else { 0 };
+            
+            let mut sorted = self.all_latencies[start_index..].to_vec();
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            
+            let sorted_len = sorted.len() as f64;
+            let max_idx = sorted_len - 1.0;
+
+            self.p25 = sorted[(max_idx * 0.25).round() as usize];
+            self.p75 = sorted[(max_idx * 0.75).round() as usize];
+            self.p99 = sorted[(max_idx * 0.99).round() as usize];
         }
     }
 }
