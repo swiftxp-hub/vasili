@@ -167,8 +167,6 @@ pub struct App {
 
     pub start_time: DateTime<Local>,
     pub recorded_duration: f64,
-    pub x_counter: f64,
-    pub time_factor: f64,
 
     pub configured_interval: u64,
 
@@ -195,8 +193,6 @@ impl App {
 
             start_time: Local::now(),
             recorded_duration: 0.0,
-            x_counter: 0.0,
-            time_factor: interval_ms_float / 1000.0,
 
             configured_interval,
 
@@ -227,8 +223,6 @@ impl App {
         if time_val > self.recorded_duration {
             self.recorded_duration = time_val;
         }
-        
-        self.x_counter += 1.0; 
         
         if let Some(max) = self.max_duration {
             if self.recorded_duration >= max.as_secs_f64() {
@@ -261,25 +255,29 @@ impl App {
     pub fn on_key(&mut self, key: KeyCode) {
         match key {
             KeyCode::Char('q') => self.should_quit = true,
+            
             KeyCode::Char(' ') => {
                 if !self.is_finished {
                     self.is_paused = !self.is_paused;
                 }
             }
+
             KeyCode::Char('+') | KeyCode::Up => {
                 if self.zoom_window_seconds > 10.0 {
                     self.zoom_window_seconds -= 10.0;
                 }
             }
+
             KeyCode::Char('-') | KeyCode::Down => {
                 self.zoom_window_seconds += 10.0;
             }
+
             KeyCode::Left => {
-                let current_time = self.x_counter * self.time_factor;
-                if self.scroll_offset_seconds < current_time {
+                if self.scroll_offset_seconds < self.recorded_duration {
                     self.scroll_offset_seconds += 10.0;
                 }
             }
+
             KeyCode::Right => {
                 self.scroll_offset_seconds -= 10.0;
                 if self.scroll_offset_seconds < 0.0 {
