@@ -12,7 +12,7 @@ Unlike standard ping tools, Vasili simultaneously tracks your **Target** (e.g., 
   **Smart Interval:** The gateway is probed at 2x the frequency of the target to detect local micro-stutters with higher resolution.
 * **Real-time TUI:** Visualizes latency, jitter, and packet loss using high-performance terminal charts (powered by `ratatui`).
 * **Daemon Mode:** Run Vasili in the background (headless) without the TUI. Perfect for long-term monitoring on servers or Raspberry Pis.
-* **Jitter Analysis:** Calculates current jitter and records P25, P75, and P95 percentile latency stats.
+* **Jitter Analysis:** Calculates current jitter and records P25, P75, and P99 percentile latency stats.
 * **Grading System:** Automatically grades your connection stability (S, A, B, C, F) based on packet loss and latency spikes.
                       *Note:* These grades are only intended to provide an initial rough guide and cannot replace a thorough examination of the data.
 * **History & Zoom:** Scroll through past data and zoom the time axis in and out dynamically.
