@@ -19,6 +19,8 @@ Unlike standard ping tools, Vasili simultaneously tracks your **Target** (e.g., 
 * **CSV Logging:** Automatically saves all ping data to a CSV file for later analysis (e.g. in Google Sheets).
 * **Lightweight:** Built with Rust and `tokio` for minimal resource usage, making it suitable for embedded devices (e.g. running directly on routers).
 
+![Vasili 1.0.2 screenshot](https://raw.githubusercontent.com/swiftxp-hub/vasili/refs/heads/main/assets/vassili-102-screenshot.png)
+
 ## Installation
 
 ### Prerequisites
@@ -100,7 +102,7 @@ The interface is interactive. Use the following keys during operation:
 
 ### The Graph
 * **Green Line:** Target Latency.
-* **Yellow Points:** Target Jitter.
+* **Yellow Line:** Target Jitter.
 * **Red Block:** Target Packet Loss (Timeout).
 * **Blue Line:** Gateway Latency.
 * **Light Cyan Line:** Gateway Jitter.
